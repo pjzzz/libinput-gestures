@@ -1,29 +1,5 @@
 ### LIBINPUT-GESTURES
 
-[Libinput-gestures][REPO] is a utility which reads [libinput
-gestures](https://wayland.freedesktop.org/libinput/doc/latest/gestures.html)
-from your touchpad and maps them to gestures you configure in a
-configuration file. Each gesture can be configured to activate a shell
-command which is typically an [_xdotool_][XDOTOOL] command to action
-desktop/window/application keyboard combinations and commands. See the
-examples in the provided `libinput-gestures.conf` file. My motivation
-for creating this is to use triple swipe up/down to switch workspaces,
-and triple swipe right/left to go backwards/forwards in my browser, as
-per the default configuration.
-
-This small and simple utility is only intended to be used temporarily
-until GNOME and other DE's action libinput gestures natively. It parses
-the output of the _libinput list-devices_ and _libinput debug-events_
-utilities so is a little fragile to any version changes in their output
-format.
-
-This utility is developed and tested on Arch linux using the GNOME 3 DE
-on Xorg and Wayland. It works somewhat incompletely on Wayland (via
-XWayland). See the WAYLAND section below and the comments in the default
-`libinput-gestures.conf` file. It has been [reported to work with
-KDE](http://www.lorenzobettini.it/2017/02/touchpad-gestures-in-linux-kde-with-libinput-gestures/).
-I am not sure how well this will work on all distros and DE's etc.
-
 The latest version and documentation is available at
 https://github.com/bulletmark/libinput-gestures.
 
@@ -53,16 +29,10 @@ libinput release 1.0 or later. Install prerequisites:
     # E.g. On Fedora:
     sudo dnf install xdotool wmctrl
 
-Debian and Ubuntu users may also need to install `libinput-tools` if
-that package exists in your release:
+For Manjaro using yay
+    
+    yay libinput-gestures
 
-    sudo apt-get install libinput-tools
-
-Install this software:
-
-    git clone https://github.com/bulletmark/libinput-gestures.git
-    cd libinput-gestures
-    sudo make install (or sudo ./libinput-gestures-setup install)
 
 ### CONFIGURATION
 
