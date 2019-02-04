@@ -44,6 +44,8 @@ opt.add_argument('--device',
 # Test/diag hidden option to specify a file containing libinput list
 # device output to parse
 opt.add_argument('--device-list', help=argparse.SUPPRESS)
+opt.add_argument('--max_events', type=int,
+        help='maximum number of events to check before executing command')
 args = opt.parse_args()
 
 if args.debug or args.raw or args.list:
@@ -154,20 +156,29 @@ def get_device(name):
 
 class COMMAND:
     'Generic command handler'
-    def __init__(self, args):
-        self.reprstr = ' '.join(args)
 
+    def __init__(self, args):
         # Expand '~' and env vars in executable command name
         args[0] = os.path.expandvars(os.path.expanduser(args[0]))
         self.argslist = args
 
     def run(self):
         'Run this command + arguments'
-        run(self.argslist)
+        if '&&' in self.argslist:
+            cmd = []
+            for arg in self.argslist:
+                if arg != "&&":
+                    cmd.append(arg)
+                else:
+                    run(cmd)
+                    cmd = []
+            run(cmd)
+        else:
+            run(self.argslist)
 
     def __str__(self):
-        'Return string representation'
-        return self.reprstr
+        'Create string representation'
+        return ' '.join(self.argslist)
 
 # Table of internal commands
 internal_commands = OrderedDict()
@@ -179,6 +190,7 @@ def add_internal_command(cls):
 @add_internal_command
 class COMMAND_internal(COMMAND):
     'Internal command handler.'
+
     def __init__(self, args):
         'Action internal swipe commands'
         super().__init__(args)
@@ -249,6 +261,7 @@ def add_gesture_handler(cls):
 
 class GESTURE:
     'Abstract base class for handling for gestures'
+
     def __init__(self):
         'Initialise this gesture at program start'
         self.name = type(self).__name__
@@ -334,11 +347,11 @@ class SWIPE(GESTURE):
         # oblique swipe (but only if any are configured)
         if abx > aby:
             motion = 'left' if x < 0 else 'right'
-            if self.has_extended and abx > 0 and aby / abx > OBLIQUE_RATIO:
+            if self.has_extended and aby / abx > OBLIQUE_RATIO:
                 motion += '_up' if y < 0 else '_down'
         else:
             motion = 'up' if y < 0 else 'down'
-            if self.has_extended and aby > 0 and abx / aby > OBLIQUE_RATIO:
+            if self.has_extended and abx / aby > OBLIQUE_RATIO:
                 motion = ('left_' if x < 0 else 'right_') + motion
 
         self.action(motion)
@@ -377,6 +390,16 @@ conf_commands = OrderedDict()
 def add_conf_command(func):
     'Add configuration command to command lookup table based on name'
     conf_commands[re.sub('^conf_', '', func.__name__)] = func
+
+@add_conf_command
+def conf_max_events(lineargs):
+    'Process a single device line in conf file'
+    # Command line overrides configuration file
+    if not args.max_events:
+        args.max_events = int(lineargs)
+        print("Max Events set from Config : {}".format(args.max_events))
+
+    return None if args.max_events else 'No max_events specified'
 
 @add_conf_command
 def conf_gesture(lineargs):
@@ -547,6 +570,7 @@ cmd = subprocess.Popen(shlex.split(command), stdout=subprocess.PIPE,
 
 # Sit in a loop forever reading the libinput messages ..
 handler = None
+updates = 0
 for line in cmd.stdout:
 
     # Just output raw messages if in that mode
@@ -568,10 +592,15 @@ for line in cmd.stdout:
     if event == 'UPDATE':
         if handler:
             # Split parameters into list of clean numbers
-            if not handler.update(re.split(r'[^-.\d]+', params)):
-                print('Could not parse {} {}: {}'.format(gesture, event,
-                    params), file=sys.stderr)
-
+            if not args.max_events or (args.max_events and updates < args.max_events):
+                handler.update(re.split(r'[^-.\d]+', params))
+                updates = updates + 1
+            else:
+                #Enough updates! Time for action!!
+                updates = 0
+                if params != 'cancelled':
+                    handler.end()
+                handler = None
     elif event == 'BEGIN':
         handler = handlers.get(gesture)
         if handler:
@@ -581,6 +610,7 @@ for line in cmd.stdout:
                     file=sys.stderr)
     elif event == 'END':
         # Ignore gesture if final action is cancelled
+        updates = 0
         if handler:
             if params != 'cancelled':
                 handler.end()
